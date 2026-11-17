@@ -1,0 +1,174 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+  labels:
+    environment: dev
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devops-demo-config
+  namespace: dev
+data:
+  LOG_LEVEL: "info"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: devops-demo
+  namespace: dev
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::694062402197:role/devops-demo-dev-cw-publisher
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-demo-root
+  namespace: dev
+spec:
+  type: ClusterIP
+  selector:
+    app: devops-demo
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-demo-stable
+  namespace: dev
+spec:
+  type: ClusterIP
+  selector:
+    app: devops-demo
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: devops-demo-canary
+  namespace: dev
+spec:
+  type: ClusterIP
+  selector:
+    app: devops-demo
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: devops-demo
+  namespace: dev
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /ready
+    alb.ingress.kubernetes.io/success-codes: "200"
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: devops-demo-root
+                port:
+                  name: use-annotation
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: devops-demo
+  namespace: dev
+spec:
+  scaleTargetRef:
+    apiVersion: argoproj.io/v1alpha1
+    kind: Rollout
+    name: devops-demo
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: devops-demo
+  namespace: dev
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: devops-demo
+---
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: devops-demo-canary-analysis
+  namespace: dev
+spec:
+  metrics:
+    - name: canary-error-rate
+      interval: 1m
+      count: 3
+      failureLimit: 2
+      inconclusiveLimit: 2
+      successCondition: >
+        len(result[0].Values) >= 1 &&
+        all(result[0].Values, {# <= 0.02})
+      provider:
+        cloudWatch:
+          interval: 1m
+          metricDataQueries:
+            - id: errors
+              metricStat:
+                metric:
+                  namespace: DevOpsDemo
+                  metricName: ErrorCount
+                  dimensions:
+                    - name: Environment
+                      value: dev
+                    - name: Version
+                      value: v2
+                period: 60
+                stat: Sum
+                unit: Count
+              returnData: false
+            - id: requests
+              metricStat:
+                metric:
+                  namespace: DevOpsDemo
+                  metricName: RequestCount
+                  dimensions:
+                    - name: Environment
+                      value: dev
+                    - name: Version
+                      value: v2
+                period: 60
+                stat: Sum
+                unit: Count
+              returnData: false
+            - id: error_rate
+              expression: "IF(requests >= 10, errors / requests, 1)"
+              label: Canary Error Rate
+              returnData: true

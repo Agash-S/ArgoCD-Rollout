@@ -1,0 +1,27 @@
+
+FROM python:3.12-slim
+
+ARG APP_VERSION=v1
+ARG FAIL_PERCENT=0
+
+ENV APP_VERSION=${APP_VERSION}
+ENV FAIL_PERCENT=${FAIL_PERCENT}
+ENV APP_ENVIRONMENT=dev
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app.py .
+
+RUN useradd --create-home appuser \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8080
+
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "--workers", "2", "--access-logfile", "-", "app:app"]
