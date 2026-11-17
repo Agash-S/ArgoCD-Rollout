@@ -149,7 +149,7 @@ spec:
                     - name: Environment
                       value: dev
                     - name: Version
-                      value: v2
+                      value: v1
                 period: 60
                 stat: Sum
                 unit: Count
@@ -163,7 +163,7 @@ spec:
                     - name: Environment
                       value: dev
                     - name: Version
-                      value: v2
+                      value: v1
                 period: 60
                 stat: Sum
                 unit: Count
