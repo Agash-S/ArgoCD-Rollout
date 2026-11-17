@@ -25,6 +25,7 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
+        fsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
 
@@ -39,7 +40,7 @@ spec:
       containers:
         - name: devops-demo
           image: helloootiger/flask-health-rollout:v1
-
+          
           ports:
             - name: http
               containerPort: 8080
@@ -90,12 +91,20 @@ spec:
             periodSeconds: 10
             failureThreshold: 3
 
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop:
                 - ALL
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
 
   strategy:
     canary:
