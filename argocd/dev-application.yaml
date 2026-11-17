@@ -7,7 +7,7 @@ spec:
   project: default
 
   source:
-    repoURL: https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPOSITORY.git
+    repoURL: https://github.com/Agash-S/ArgoCD-Rollout.git
     targetRevision: main
     path: app/dev
     directory: {}
